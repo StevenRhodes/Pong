@@ -69,7 +69,6 @@ app.listen(PORT);
 // Model for paddles
 var paddle1 = {
   taken : false,
-  color : "#444444",
   x : 20,
   y : 150,
   score: 0
@@ -77,10 +76,14 @@ var paddle1 = {
 
 var paddle2 = {
   taken : false,
-  color : "#444444",
   x : 770,
   y : 150,
   score: 0
+};
+
+var paddleStart = {
+  paddle1 : {x:20, y:150},
+  paddle2 : {x:770, y:150}
 };
 
 var paddleWidth = 10;
@@ -115,7 +118,7 @@ setInterval(()=>{
   // Check for collision with paddle1
 	if(puck.y >=paddle1.y && puck.y <= paddle1.y + paddleHeight  && (
       (puck.x - puck.radius <= paddle1.x + paddleWidth && puck.x - puck.radius >= paddle1.x) ||
-      (puck.x + puck.radus >= paddle1.x && puck.x + puck.radius <= paddle1.x + paddleWidth)
+      (puck.x + puck.radius >= paddle1.x && puck.x + puck.radius <= paddle1.x + paddleWidth)
     )){
 	  puck.xVelocity = -puck.xVelocity;
 
@@ -126,7 +129,7 @@ setInterval(()=>{
   // Check for collision with paddle2
   if(puck.y >=paddle2.y && puck.y <= paddle2.y + paddleHeight  && (
       (puck.x - puck.radius <= paddle2.x + paddleWidth && puck.x - puck.radius >= paddle2.x) ||
-      (puck.x + puck.radus >= paddle2.x && puck.x + puck.radius <= paddle2.x + paddleWidth)
+      (puck.x + puck.radius >= paddle2.x && puck.x + puck.radius <= paddle2.x + paddleWidth)
     )){
     puck.xVelocity = -puck.xVelocity;
 
@@ -136,17 +139,42 @@ setInterval(()=>{
 
 
   //Check for Edge Collision:
+  // Collision with the top
   if( puck.y - puck.radius <= 0){
 	  puck.yVelocity = -puck.yVelocity;
   }
+
+  // Collision with the bottom
   if(puck.y + puck.radius >= 400){
 	  puck.yVelocity = -puck.yVelocity;
   }
+
+  // Collision with the left (AKA a goal!!)
   if(puck.x - puck.radius <= 0){
 	  puck.xVelocity = -puck.xVelocity;
+
+    //Update score
+    paddle2.score += 1;
+    var data = {score1 : paddle1.score, score2: paddle2.score};
+    io.emit("scoreBoard", JSON.stringify(data));
+
+    // Reset puck position
+    puck.x = puckStart.x;
+    puck.y = puckStart.y;
   }
+
+  // Collision with right (AKA a goal!!!)
   if(puck.x + puck.radius >= 800){
 	  puck.xVelocity = -puck.xVelocity;
+
+    // Update Score
+    paddle1.score += 1;
+    var data = {score1 : paddle1.score, score2: paddle2.score};
+    io.emit("scoreBoard", JSON.stringify(data));
+
+    // Reset puck position
+    puck.x = puckStart.x;
+    puck.y = puckStart.y;
   }
 
   // Tell the clients about the position of everything
@@ -192,7 +220,6 @@ io.on('connect', (socket)=> {
 
       // Give them the left paddle
       paddle1.taken = true;
-      paddle1.color = "white";
       data = {claimStatus: "paddle1", paddle: paddle1};
 
       // If paddle1 is also taken now, start the game
@@ -204,7 +231,6 @@ io.on('connect', (socket)=> {
 
       // Give them the right paddle
       paddle2.taken = true;
-      paddle2.color = "white";
       data = {claimStatus: "paddle2", paddle: paddle2};
 
       // If paddle1 is also taken now, start the game
@@ -218,23 +244,53 @@ io.on('connect', (socket)=> {
 
     // Tell the client which paddle they got, or if they got none
     socket.emit('playerRegister', JSON.stringify(data));
-  });
 
-  //Tell client the score:
-  socket.on("scoreBoard", ()=>{
-
-	if( puck.y - puck.radius <= 0){
-	    paddle2.score++;
+    if (data.claimStatus != "paddlesTaken") {
+      // Tell the remaining sockets that the paddle is claimed now
+      socket.broadcast.emit("paddleTaken", JSON.stringify(data));
     }
-	if( puck.y + puck.radius >=400){
-		paddle1.score++;
-	}
-	data = { score1 : paddle1.score , score2 : paddle2.score};
 
-    // Send data to socket that requested only
-    io.emit("scoreBoard", JSON.stringify(data));
   });
+
+  socket.on("releasePaddle", (paddleData)=>{
+    var data = JSON.parse(paddleData);
+    if (data.paddle == "paddle1") {
+      paddle1.taken = false;
+      resetGame();
+
+      var data = {paddle: "paddle1"};
+      io.emit("paddleReleased", JSON.stringify(data));
+
+    } else if (data.paddle == "paddle2") {
+      paddle2.taken = false;
+      resetGame();
+
+      var data = {paddle: "paddle2"};
+      io.emit("paddleReleased", JSON.stringify(data));
+    }
+  })
 });
+
+function resetGame() {
+
+  // Reset score
+  paddle1.score = 0;
+  paddle2.score = 0;
+  var data = {score1 : paddle1.score, score2: paddle2.score};
+  io.emit("scoreBoard", JSON.stringify(data));
+
+  // Reset Paddle positions
+  paddle1.x = paddleStart.paddle1.x;
+  paddle1.y = paddleStart.paddle1.y;
+  paddle2.x = paddleStart.paddle2.x;
+  paddle2.y = paddleStart.paddle2.y;
+
+  // Reset puck
+  puck.x = puckStart.x;
+  puck.y = puckStart.y;
+  puck.xVelocity = 0;
+  puck.yVelocity = 0;
+}
 
 const MIME_TYPES = {
   css: "text/css",
