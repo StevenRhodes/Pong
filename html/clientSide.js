@@ -395,6 +395,7 @@ socket.on('initialSetup', (reply)=>{
   // Update paddle1
   paddle1.x = data.paddle1.x;
   paddle1.y = data.paddle1.y;
+  paddle1.score = data.paddle1.score;
   paddle1.taken = data.paddle1.taken;
   if (paddle1.taken == true) {
     document.getElementById("playButtonLeft").style.backgroundColor = "grey";
@@ -403,6 +404,7 @@ socket.on('initialSetup', (reply)=>{
   // Update paddle2
   paddle2.x = data.paddle2.x;
   paddle2.y = data.paddle2.y;
+  paddle2.score = data.paddle2.score;
   paddle2.taken = data.paddle2.taken;
   if (paddle2.taken == true) {
     document.getElementById("playButtonRight").style.backgroundColor = "grey";
