@@ -1,11 +1,9 @@
-<<<<<<< HEAD
-//JACOB!!!
-//sfasfsa
-=======
 
-//JACOB!!
-//STE
->>>>>>> 1d4f40a686bab944c0a80c95f05c1506cbc7cd0f
+///LAST TRY
+
+
+
+
 const http = require("http");
 const fs = require("fs");
 const url = require("url");
