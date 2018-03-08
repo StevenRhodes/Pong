@@ -142,20 +142,29 @@ function handleTimer() {
     return;
   }
 
+  // If one paddle is not taken, don't allow moevement yet
+  if (paddle1.taken == false || paddle2.taken == false) {
+    return;
+  }
 
+  var moved = false;
 
   // Check for keys which are currently pressed, and move the paddle accordingly
   if (keysDown.right == true) {
     paddle.x += 4;
+    moved = true;
   }
   if (keysDown.left == true) {
     paddle.x -= 4;
+    moved = true;
   }
   if (keysDown.up == true) {
     paddle.y -= 4;
+    moved = true;
   }
   if (keysDown.down == true) {
     paddle.y += 4;
+    moved = true;
   }
 
   // Check if paddle went past x boundaries
@@ -176,7 +185,7 @@ function handleTimer() {
 
 
   // Tell the server about the new position of the paddle
-  socket.emit("positionData", JSON.stringify(data));
+  if(moved == true) {socket.emit("positionData", JSON.stringify(data));}
 
 
 
@@ -209,8 +218,13 @@ socket.on('playerRegister', (reply)=>{
   console.log(data);
   switch (data.claimStatus) {
     case "paddle1":
-      paddle1.color = data.paddle.color;
+
+      // Update paddle color
+      paddle1.color = "white";
       userPaddle = "paddle1";
+      paddle1.taken = true;
+
+
       var rightButton = document.getElementById("playButtonRight");
       var leftButton = document.getElementById("playButtonLeft");
 
@@ -221,20 +235,141 @@ socket.on('playerRegister', (reply)=>{
 
       leftButton.value = "Release"
       leftButton.onclick = ()=>{
+
+        // take away control of paddle
+        userPaddle = '';
+
         // Request to release paddle1
+        var data = {paddle: "paddle1"};
+        socket.emit("releasePaddle", JSON.stringify(data));
       };
       break;
     case "paddle2":
-      paddle2.color = data.paddle.color;
+      paddle2.color = "white";
       userPaddle = "paddle2";
+
+      paddle2.taken = true;
+
+      var rightButton = document.getElementById("playButtonRight");
+      var leftButton = document.getElementById("playButtonLeft");
+
+      // Make left button greyed out
+      leftButton.style.backgroundColor = "grey";
+      leftButton.onclick = ()=>{}; // Make left button do nothing
+
+
+      rightButton.value = "Release"
+      rightButton.onclick = ()=>{
+        // take away control of paddle
+        userPaddle = '';
+
+        // Request to release paddle1
+        var data = {paddle: "paddle2"};
+        socket.emit("releasePaddle", JSON.stringify(data));
+      };
       break;
+  }
+});
+
+socket.on("paddleTaken", (paddleData)=>{
+  var data = JSON.parse(paddleData);
+
+  if (data.claimStatus == "paddle1") {
+
+    paddle1.taken = true;
+
+    // Grey out left button
+    var leftButton = document.getElementById("playButtonLeft");
+    leftButton.style.backgroundColor = "grey";
+
+    // Make the left button do nothing
+    leftButton.onclick = ()=>{};
+  } else if (data.claimStatus == "paddle2") {
+
+    paddle2.taken = true;
+
+    // Grey out right button
+    var rightButton = document.getElementById("playButtonRight");
+    rightButton.style.backgroundColor = "grey";
+
+    // Make the right button do nothing
+    rightButton.onclick = ()=>{};
+  }
+});
+
+socket.on("paddleReleased", (paddleData)=>{
+  var data = JSON.parse(paddleData);
+
+  console.log(data);
+
+  if (data.paddle == "paddle1") {
+
+    paddle1.taken = false;
+
+    // Reset paddle color
+    paddle1.color = "#444444";
+
+    // If user has other paddle, just return
+    if (userPaddle == "paddle2") {
+      return;
+    }
+
+    // Reset left button
+    var leftButton = document.getElementById("playButtonLeft");
+    leftButton.style.backgroundColor = "#4CAF50";
+    leftButton.value = "Claim Left Paddle";
+
+    // Make the left button claim paddle
+    leftButton.onclick = handleClaimLeftButton;
+
+    // Allow user to claim right paddle if not taken
+    if(paddle2.taken == false) {
+      // Reset right button
+      var rightButton = document.getElementById("playButtonRight");
+      rightButton.style.backgroundColor = "#4CAF50";
+      rightButton.value = "Claim Left Paddle";
+
+      // Make the right button claim paddle
+      rightButton.onclick = handleClaimRightButton;
+    }
+
+  } else if (data.paddle == "paddle2") {
+
+    paddle2.taken = false;
+
+    // reset paddle color
+    paddle2.color = "#444444";
+
+    // If user has other paddle, just return
+    if (userPaddle == "paddle1") {
+      return;
+    }
+
+    // Reset right button
+    var rightButton = document.getElementById("playButtonRight");
+    rightButton.style.backgroundColor = "#4CAF50";
+    rightButton.value = "Claim Left Paddle";
+
+    // Make the right button claim paddle
+    rightButton.onclick = handleClaimRightButton;
+
+    // Allow user to claim left paddle if not taken
+    if(paddle1.taken == false) {
+      // Reset left button
+      var leftButton = document.getElementById("playButtonLeft");
+      leftButton.style.backgroundColor = "#4CAF50";
+      leftButton.value = "Claim Left Paddle";
+
+      // Make the left button claim paddle
+      leftButton.onclick = handleClaimLeftButton;
+    }
   }
 });
 
 // Constant update of puck and paddles
 socket.on("positionData", (respData)=>{
   var data = JSON.parse(respData);
-  
+
   paddle1.x = data.paddle1.x;
   paddle1.y = data.paddle1.y;
   paddle2.x = data.paddle2.x;
@@ -247,11 +382,9 @@ socket.on("positionData", (respData)=>{
 //Scoreboard socket:
 socket.on("scoreBoard", (respData)=>{
   var data = JSON.parse(respData);
-  console.log("ANDDDDD");
   paddle1.score = data.score1;
   paddle2.score = data.score2;
   drawCanvas();
-
 });
 
 // For initial setup of puck and paddles
@@ -262,7 +395,6 @@ socket.on('initialSetup', (reply)=>{
   // Update paddle1
   paddle1.x = data.paddle1.x;
   paddle1.y = data.paddle1.y;
-  paddle1.color = data.paddle1.color;
   paddle1.taken = data.paddle1.taken;
   if (paddle1.taken == true) {
     document.getElementById("playButtonLeft").style.backgroundColor = "grey";
@@ -271,10 +403,9 @@ socket.on('initialSetup', (reply)=>{
   // Update paddle2
   paddle2.x = data.paddle2.x;
   paddle2.y = data.paddle2.y;
-  paddle2.color = data.paddle2.color;
   paddle2.taken = data.paddle2.taken;
   if (paddle2.taken == true) {
-    document.getElementById("playButtonLeft").style.backgroundColor = "grey";
+    document.getElementById("playButtonRight").style.backgroundColor = "grey";
   }
 
   // Update puck
